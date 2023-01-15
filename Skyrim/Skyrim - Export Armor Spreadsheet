@@ -1,0 +1,84 @@
+{
+	Purpose: Export Armor Spreadsheet
+	Game: TES V: Skyrim
+	Author: Asmoranomar
+	Version: 1.0
+	Notes:
+	Fields Delimited by ';'
+}
+
+unit UserScript;
+
+var slArmo: TStringList;
+
+function GetSetFlags(e: IInterface; asPath: string): string;
+var
+	slFlagNames, slSetFlagNames: TStringList;
+	listitem: IInterface;
+	flag: string;
+	i: integer;
+begin
+	Result := '';
+	
+	slFlagNames := ElementByPath(e, asPath);
+	slSetFlagNames := TStringList.Create;
+	
+	if ElementCount(slFlagNames) > 0 then begin
+		for i := 0 to ElementCount(slFlagNames) - 1 do begin
+			listitem := ElementByIndex(slFlagNames, i);
+			flag := Name(listitem);
+			slSetFlagNames.Add(flag);
+		end;
+		Result := slSetFlagNames.DelimitedText;
+		Result := StringReplace(Result, '"', '', [rfReplaceAll, rfIgnoreCase]);
+		Result := StringReplace(Result, ',', ', ', [rfReplaceAll, rfIgnoreCase]);
+	end;
+end;
+
+function Initialize: integer;
+begin
+	slArmo := TStringList.Create;
+	slArmo.Add('File Name;FormID;EditorID;Name;Enchantment;Slots;Armor Type;Equip Type;Armor;Value;Weight;Template');
+end;
+
+function Process(e: IInterface): integer;
+begin
+	// Process only ARMO records
+	if Signature(e) <> 'ARMO' then
+		Exit;
+
+	// Add Record
+	slArmo.Add(Format('%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s' , [
+		'[' + IntToHex(GetLoadOrder(GetFile(e)), 2) + '] ' + GetFileName(GetFile(e)),
+		'[' + IntToHex(FixedFormID(e), 8) + ']',
+		GetElementEditValues(e, 'EDID'),
+		GetElementEditValues(e, 'FULL'),
+		GetElementEditValues(LinksTo(ElementBySignature(e, 'EITM')), 'EDID'),
+		GetSetFlags(e, 'BOD2\First Person Flags'),
+		GetElementEditValues(e, 'BOD2\Armor Type'),
+		GetElementEditValues(LinksTo(ElementBySignature(e, 'ETYP')), 'EDID'),
+		GetElementEditValues(e, 'DNAM'),
+		GetElementEditValues(e, 'DATA\Value'),
+		GetElementEditValues(e, 'DATA\Weight'),
+		GetElementEditValues(LinksTo(ElementBySignature(e, 'TNAM')), 'EDID')
+		
+	]));
+end;
+
+function Finalize: integer;
+var
+	dlgSave: TSaveDialog;
+begin
+    dlgSave := TSaveDialog.Create(nil);
+    dlgSave.Options := dlgSave.Options + [ofOverwritePrompt];
+    dlgSave.Filter := 'Spreadsheet files (*.csv)|*.csv';
+    dlgSave.InitialDir := ProgramPath;
+    dlgSave.FileName := 'Armor.csv';
+    if dlgSave.Execute then
+      slArmo.SaveToFile(dlgSave.FileName);
+    dlgSave.Free;
+	
+	slArmo.Free
+end;
+
+end.
